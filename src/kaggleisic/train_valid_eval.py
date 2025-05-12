@@ -41,10 +41,10 @@ def train_valid(model, train_loader, valid_loader, is_multimodal=False):
                 model, device, valid_loader, criterion, epoch
             )
         else:
-            train_acc = train_images(
+            train_acc = train_singles(
                 model, device, train_loader, optimizer, criterion, epoch
             )
-            valid_acc = validate_images(model, device, valid_loader, criterion, epoch)
+            valid_acc = validate_singles(model, device, valid_loader, criterion, epoch)
 
         train_accuracies.append(train_acc)
         valid_accuracies.append(valid_acc)
@@ -83,7 +83,7 @@ def train_eval(
                 model, device, full_loader, optimizer, criterion, epoch
             )
         else:
-            train_acc = train_images(
+            train_acc = train_singles(
                 model, device, full_loader, optimizer, criterion, epoch
             )
         train_accuracies.append(train_acc)
@@ -106,7 +106,7 @@ def train_eval(
     if is_multimodal:
         submission_df = evaluate_multimodal(model, device, test_loader)
     else:
-        submission_df = evaluate_images(model, device, test_loader)
+        submission_df = evaluate_singles(model, device, test_loader)
 
     # Save submission file
     submission_file_path = urlparse(
@@ -209,22 +209,22 @@ def evaluate_multimodal(model, device, test_loader):
     return submission_df
 
 
-def train_images(model, device, train_loader, optimizer, criterion, epoch):
+def train_singles(model, device, train_loader, optimizer, criterion, epoch):
     model.train()
     running_loss = 0.0
     correct_preds = 0
     total_preds = 0
 
-    for images, labels, _ in tqdm(
+    for singles, labels, _ in tqdm(
         train_loader, desc=f"Train Epoch {epoch}", leave=False
     ):
-        images, labels = (
-            images.to(device),
+        singles, labels = (
+            singles.to(device),
             labels.to(device),
         )
 
         optimizer.zero_grad()
-        logits = model(images).view(-1)  # [batch_size]
+        logits = model(singles).view(-1)  # [batch_size]
 
         loss = criterion(logits, labels)
         loss.backward()
@@ -244,22 +244,22 @@ def train_images(model, device, train_loader, optimizer, criterion, epoch):
     return train_accuracy
 
 
-def validate_images(model, device, valid_loader, criterion, epoch):
+def validate_singles(model, device, valid_loader, criterion, epoch):
     model.eval()
     val_loss = 0.0
     val_correct_preds = 0
     val_total_preds = 0
 
     with torch.no_grad():
-        for images, labels, _ in tqdm(
+        for singles, labels, _ in tqdm(
             valid_loader, desc=f"Validation Epoch {epoch}", leave=False
         ):
-            images, labels = (
-                images.to(device),
+            singles, labels = (
+                singles.to(device),
                 labels.to(device),
             )
 
-            logits = model(images).view(-1)
+            logits = model(singles).view(-1)
             loss = criterion(logits, labels)
 
             val_loss += loss.item()
@@ -275,15 +275,15 @@ def validate_images(model, device, valid_loader, criterion, epoch):
     return val_accuracy
 
 
-def evaluate_images(model, device, test_loader):
+def evaluate_singles(model, device, test_loader):
     model.eval()
     predictions = []
 
     with torch.no_grad():
-        for images, isic_ids in tqdm(test_loader, desc="Inference on Test"):
-            images = images.to(device)
+        for singles, isic_ids in tqdm(test_loader, desc="Inference on Test"):
+            singles = singles.to(device)
 
-            logits = model(images).view(-1)  # shape [batch_size]
+            logits = model(singles).view(-1)  # shape [batch_size]
             probs = torch.sigmoid(logits)  # shape [batch_size], in [0,1]
 
             probs = probs.cpu().numpy()

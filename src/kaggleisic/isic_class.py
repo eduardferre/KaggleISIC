@@ -134,3 +134,32 @@ class ISIC_Multimodal_Dataset(Dataset):
         image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
         return image_rgb
+
+
+class ISIC_Metadata_Dataset(Dataset):
+    def __init__(self, df: pd.DataFrame, is_labelled: bool = True):
+        self.df = df.reset_index(drop=True)
+        self.is_labelled = is_labelled
+
+        # Store input features separately for safety
+        self.features = df.drop(
+            columns=["target", "isic_id"], errors="ignore"
+        ).values.astype("float32")
+
+        self.isic_ids = df["isic_id"].values.astype("str")
+
+        if self.is_labelled:
+            self.labels = df["target"].values.astype("float32")
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        metadata = torch.tensor(self.features[idx])
+        isic_id = self.isic_ids[idx]
+
+        if self.is_labelled:
+            label = torch.tensor(self.labels[idx])
+            return metadata, label, isic_id
+        else:
+            return metadata, isic_id

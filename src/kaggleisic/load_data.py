@@ -119,15 +119,10 @@ def encode_impute_data(df_metadata, exclude_cols=["target", "isic_id"]) -> pd.Da
     return df
 
 
-def load_metadata_dataset(train_frac=0.8, seed=42, load_images=False) -> tuple:
+def load_metadata_dataset(train_frac=0.8, seed=42) -> tuple:
     # Load the metadata CSV files
     train_df = pd.read_csv(config.PROCESSED_DATA_DIR / TRAIN_METADATA_PROCESSED_CSV)
     test_df = pd.read_csv(config.PROCESSED_DATA_DIR / TEST_METADATA_PROCESSED_CSV)
-
-    if not load_images:
-        # Drop the isic_id column if not loading images
-        train_df = train_df.drop(columns=["isic_id"])
-        test_df = test_df.drop(columns=["isic_id"])
 
     # Perform stratified train/validation split to maintain class distribution
     train_dataset, valid_dataset = train_test_split(
@@ -160,7 +155,7 @@ def load_hdf5_dataset(
     """
     # Load the metadata CSV files
     train_df_sub, valid_df_sub, test_df = load_metadata_dataset(
-        train_frac=train_frac, seed=seed, load_images=True
+        train_frac=train_frac, seed=seed
     )
 
     # Create Datasets
@@ -193,7 +188,7 @@ def load_multimodal_dataset(
     """
     # Load the metadata CSV files
     train_df_sub, valid_df_sub, test_df = load_metadata_dataset(
-        train_frac=train_frac, seed=seed, load_images=True
+        train_frac=train_frac, seed=seed
     )
 
     # Create Datasets
