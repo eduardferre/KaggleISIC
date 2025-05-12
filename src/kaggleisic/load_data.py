@@ -15,6 +15,10 @@ TRAIN_METADATA_PROCESSED_CSV = "train-metadata-processed.csv"
 TEST_METADATA_PROCESSED_CSV = "test-metadata-processed.csv"
 TRAIN_HDF5 = urlparse(str(config.RAW_DATA_DIR / "train-image.hdf5")).path
 TEST_HDF5 = urlparse(str(config.RAW_DATA_DIR / "test-image.hdf5")).path
+TRAIN_METADATA_AUGMENTED_CSV = "train-metadata-augmented.csv"
+TRAIN_HDF5_AUGMENTED = urlparse(
+    str(config.PROCESSED_DATA_DIR / "train-image-augmented.hdf5")
+).path
 
 DROP_COLUMNS = [
     "image_type",
@@ -119,9 +123,13 @@ def encode_impute_data(df_metadata, exclude_cols=["target", "isic_id"]) -> pd.Da
     return df
 
 
-def load_metadata_dataset(train_frac=0.8, seed=42) -> tuple:
+def load_metadata_dataset(train_frac=0.8, seed=42, is_augmented=False) -> tuple:
+    if is_augmented:
+        train_file = TRAIN_METADATA_AUGMENTED_CSV
+    else:
+        train_file = TRAIN_METADATA_PROCESSED_CSV
     # Load the metadata CSV files
-    train_df = pd.read_csv(config.PROCESSED_DATA_DIR / TRAIN_METADATA_PROCESSED_CSV)
+    train_df = pd.read_csv(config.PROCESSED_DATA_DIR / train_file)
     test_df = pd.read_csv(config.PROCESSED_DATA_DIR / TEST_METADATA_PROCESSED_CSV)
 
     # Perform stratified train/validation split to maintain class distribution
@@ -142,7 +150,7 @@ def load_metadata_dataset(train_frac=0.8, seed=42) -> tuple:
 
 
 def load_hdf5_dataset(
-    transform: T.Compose, train_frac=0.8, seed=42
+    transform: T.Compose, train_frac=0.8, seed=42, is_augmented=False
 ) -> tuple[ISIC_HDF5_Dataset]:
     """
     Load the ISIC dataset from HDF5 files and split it into train, validation, and test sets.
@@ -155,16 +163,21 @@ def load_hdf5_dataset(
     """
     # Load the metadata CSV files
     train_df_sub, valid_df_sub, test_df = load_metadata_dataset(
-        train_frac=train_frac, seed=seed
+        train_frac=train_frac, seed=seed, is_augmented=is_augmented
     )
+
+    if is_augmented:
+        train_file = TRAIN_HDF5_AUGMENTED
+    else:
+        train_file = TRAIN_HDF5
 
     # Create Datasets
     train_dataset = ISIC_HDF5_Dataset(
-        df=train_df_sub, hdf5_path=TRAIN_HDF5, transform=transform, is_labelled=True
+        df=train_df_sub, hdf5_path=train_file, transform=transform, is_labelled=True
     )
 
     valid_dataset = ISIC_HDF5_Dataset(
-        df=valid_df_sub, hdf5_path=TRAIN_HDF5, transform=transform, is_labelled=True
+        df=valid_df_sub, hdf5_path=train_file, transform=transform, is_labelled=True
     )
 
     test_dataset = ISIC_HDF5_Dataset(
@@ -175,7 +188,7 @@ def load_hdf5_dataset(
 
 
 def load_multimodal_dataset(
-    transform: T.Compose, train_frac=0.8, seed=42
+    transform: T.Compose, train_frac=0.8, seed=42, is_augmented=False
 ) -> tuple[ISIC_Multimodal_Dataset]:
     """
     Load the ISIC dataset from HDF5 files and split it into train, validation, and test sets.
@@ -188,20 +201,25 @@ def load_multimodal_dataset(
     """
     # Load the metadata CSV files
     train_df_sub, valid_df_sub, test_df = load_metadata_dataset(
-        train_frac=train_frac, seed=seed
+        train_frac=train_frac, seed=seed, is_augmented=is_augmented
     )
+
+    if is_augmented:
+        train_file = TRAIN_HDF5_AUGMENTED
+    else:
+        train_file = TRAIN_HDF5
 
     # Create Datasets
     train_dataset = ISIC_Multimodal_Dataset(
         df=train_df_sub,
-        hdf5_path=TRAIN_HDF5,
+        hdf5_path=train_file,
         transform=transform,
         is_labelled=True,
     )
 
     valid_dataset = ISIC_Multimodal_Dataset(
         df=valid_df_sub,
-        hdf5_path=TRAIN_HDF5,
+        hdf5_path=train_file,
         transform=transform,
         is_labelled=True,
     )
