@@ -214,3 +214,21 @@ def load_multimodal_dataset(
     )
 
     return train_dataset, valid_dataset, test_dataset
+
+
+def create_balanced_subset(
+    df: pd.DataFrame, target_col="target", seed=42
+) -> pd.DataFrame:
+    # Just keep all the cancer cases and subsample the healthy cases (2:1 ratio)
+    positives = df[df[target_col] == 1]
+
+    n_negatives = len(positives) * 2  # 2:1 ratio
+    negatives = df[df[target_col] == 0].sample(
+        n=min(n_negatives, len(df[df[target_col] == 0])), random_state=seed
+    )
+    balanced_df = (
+        pd.concat([positives, negatives])
+        .sample(frac=1, random_state=seed)
+        .reset_index(drop=True)
+    )
+    return balanced_df
