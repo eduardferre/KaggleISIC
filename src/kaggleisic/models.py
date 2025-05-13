@@ -3,40 +3,6 @@ import torch.nn as nn
 from torchvision import models
 
 
-class ResNet50Multimodal(nn.Module):
-    def __init__(self, metadata_input_dim: int, dropout: float = 0.3):
-        super().__init__()
-
-        # Load pre-trained ResNet-50
-        self.resnet = models.resnet50(pretrained=True)
-        self.resnet.fc = nn.Identity()  # remove original classifier (2048-dim output)
-
-        # Metadata processing branch
-        self.metadata_net = nn.Sequential(
-            nn.Linear(metadata_input_dim, 128),
-            nn.BatchNorm1d(128),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-        )
-
-        # Combined classifier
-        self.classifier = nn.Sequential(
-            nn.Linear(2048 + 64, 128),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(128, 1),
-            nn.Sigmoid(),  # Binary classification
-        )
-
-    def forward(self, image, metadata):
-        image_feats = self.resnet(image)  # (batch, 2048)
-        metadata_feats = self.metadata_net(metadata)  # (batch, 64)
-        combined = torch.cat([image_feats, metadata_feats], dim=1)
-        return self.classifier(combined)
-
-
 class MLP_MetadataOnly(nn.Module):
     def __init__(self, num_features):
         super().__init__()
@@ -89,3 +55,31 @@ class MLP_Multimodal(nn.Module):
         image_flat = image.view(image.size(0), -1)
         combined = torch.cat((image_flat, metadata), dim=1)
         return self.mlp(combined)
+
+
+class ResNet50_Simple_ImageOnly(nn.Module):
+    def __init__(self, out_features=1):
+        super(ResNet50_Simple_ImageOnly, self).__init__()
+        self.resnet = models.resnet50(pretrained=True)
+
+        self.resnet.fc = nn.Linear(self.resnet.fc.in_features, out_features)
+
+    def forward(self, x):
+        return self.resnet(x)
+
+
+class ResNet50_Custom_ImageOnly(nn.Module):
+    def __init__(self, out_features=1, dropout_rate=0.5):
+        super(ResNet50_Custom_ImageOnly, self).__init__()
+        self.resnet = models.resnet50(pretrained=True)
+
+        self.resnet.fc = nn.Sequential(
+            nn.Dropout(p=dropout_rate),
+            nn.Linear(self.resnet.fc.in_features, 512),
+            nn.ReLU(),
+            nn.Dropout(p=dropout_rate),
+            nn.Linear(512, out_features),
+        )
+
+    def forward(self, x):
+        return self.resnet(x)
