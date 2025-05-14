@@ -218,10 +218,7 @@ def train_singles(model, device, train_loader, optimizer, criterion, epoch):
     for singles, labels, _ in tqdm(
         train_loader, desc=f"Train Epoch {epoch}", leave=False
     ):
-        singles, labels = (
-            singles.to(device),
-            labels.to(device),
-        )
+        singles, labels = singles.to(device), labels.to(device)
 
         optimizer.zero_grad()
         logits = model(singles).view(-1)  # [batch_size]
@@ -254,10 +251,7 @@ def validate_singles(model, device, valid_loader, criterion, epoch):
         for singles, labels, _ in tqdm(
             valid_loader, desc=f"Validation Epoch {epoch}", leave=False
         ):
-            singles, labels = (
-                singles.to(device),
-                labels.to(device),
-            )
+            singles, labels = singles.to(device), labels.to(device)
 
             logits = model(singles).view(-1)
             loss = criterion(logits, labels)

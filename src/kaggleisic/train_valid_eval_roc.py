@@ -17,11 +17,14 @@ EPOCHS = 1
 LEARNING_RATE = 1e-4
 SCHEDULER_STEP_SIZE = 2
 SCHEDULER_GAMMA = 0.1
+MIN_DELTA = 0.001
 
 load_dotenv()
 
 
-def train_valid(model, train_loader, valid_loader):
+def train_valid(
+    model, train_loader, valid_loader, patience=5, is_multimodal=False
+) -> int:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
@@ -33,11 +36,22 @@ def train_valid(model, train_loader, valid_loader):
     train_aucs = []
     valid_aucs = []
 
+    best_valid_auc = 0
+    epochs_no_improve = 0
+
     for epoch in range(1, EPOCHS + 1):
-        train_auc = train_singles(
-            model, device, train_loader, optimizer, criterion, epoch
-        )
-        valid_auc = validate_singles(model, device, valid_loader, criterion, epoch)
+        if is_multimodal:
+            train_auc = train_multimodal(
+                model, device, train_loader, optimizer, criterion, epoch
+            )
+            valid_auc = validate_multimodal(
+                model, device, valid_loader, criterion, epoch
+            )
+        else:
+            train_auc = train_singles(
+                model, device, train_loader, optimizer, criterion, epoch
+            )
+            valid_auc = validate_singles(model, device, valid_loader, criterion, epoch)
 
         train_aucs.append(train_auc)
         valid_aucs.append(valid_auc)
@@ -46,16 +60,34 @@ def train_valid(model, train_loader, valid_loader):
         current_lr = scheduler.get_last_lr()[0]
         print(f"Learning Rate: {current_lr}")
 
+        # Early Stopping check with threshold
+        if valid_auc > best_valid_auc + MIN_DELTA:
+            best_valid_auc = valid_auc
+            epochs_no_improve = 0
+        else:
+            epochs_no_improve += 1
+            print(
+                f"No improvement in {epochs_no_improve} epochs (threshold of {MIN_DELTA})."
+            )
+
+        if epochs_no_improve >= patience:
+            print(f"Early stopping triggered after {epoch} epochs!")
+            break
+
     # Plot training and validation ROC AUC scores
     plot_train_valid_curves(train_aucs, valid_aucs)
 
     print("Training complete ✅")
+
+    return epoch
 
 
 def train_eval(
     model,
     full_loader,
     test_loader,
+    early_stopping_epochs=EPOCHS,
+    is_multimodal=False,
     output_model_file="model_final.pth",
     output_submission_file="submission.csv",
 ):
@@ -69,10 +101,15 @@ def train_eval(
     # Tracking lists
     train_aucs = []
 
-    for epoch in range(1, EPOCHS + 1):
-        train_auc = train_singles(
-            model, device, full_loader, optimizer, criterion, epoch
-        )
+    for epoch in range(1, early_stopping_epochs + 1):
+        if is_multimodal:
+            train_auc = train_multimodal(
+                model, device, full_loader, optimizer, criterion, epoch
+            )
+        else:
+            train_auc = train_singles(
+                model, device, full_loader, optimizer, criterion, epoch
+            )
         train_aucs.append(train_auc)
 
         scheduler.step()
@@ -90,7 +127,10 @@ def train_eval(
     print("Training complete ✅")
 
     # Evaluate on test set
-    submission_df = evaluate_singles(model, device, test_loader)
+    if is_multimodal:
+        submission_df = evaluate_multimodal(model, device, test_loader)
+    else:
+        submission_df = evaluate_singles(model, device, test_loader)
 
     # Save submission file
     submission_file_path = urlparse(
@@ -129,7 +169,7 @@ def train_singles(model, device, train_loader, optimizer, criterion, epoch):
     try:
         train_auc = roc_auc_score(all_labels, all_logits)
     except ValueError:
-        train_auc = 0.0  # In case only one class present
+        train_auc = 0.0
 
     print(
         f"Epoch {epoch}/{EPOCHS} | Train Loss: {avg_train_loss:.4f} | Train ROC AUC: {train_auc:.4f}"
@@ -177,6 +217,99 @@ def evaluate_singles(model, device, test_loader):
             singles = singles.to(device)
 
             logits = model(singles).view(-1)
+            probs = torch.sigmoid(logits).cpu().numpy()
+
+            for isic_id, p in zip(isic_ids, probs):
+                predictions.append({"isic_id": isic_id, "target": float(p)})
+
+    submission_df = pd.DataFrame(predictions)
+    submission_df = submission_df.sort_values(by="isic_id").reset_index(drop=True)
+
+    return submission_df
+
+
+def train_multimodal(model, device, train_loader, optimizer, criterion, epoch):
+    model.train()
+    running_loss = 0.0
+    all_logits = []
+    all_labels = []
+
+    for metadatas, images, labels in tqdm(
+        train_loader, desc=f"Train Epoch {epoch}", leave=False
+    ):
+        metadatas, images, labels = (
+            metadatas.to(device).float(),
+            images.to(device),
+            labels.to(device),
+        )
+
+        optimizer.zero_grad()
+        logits = model(images, metadatas).view(-1)  # [batch_size]
+
+        loss = criterion(logits, labels)
+        loss.backward()
+        optimizer.step()
+
+        running_loss += loss.item()
+        all_logits.extend(torch.sigmoid(logits).detach().cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+    avg_train_loss = running_loss / len(train_loader)
+    try:
+        train_auc = roc_auc_score(all_labels, all_logits)
+    except ValueError:
+        train_auc = 0.0
+
+    print(
+        f"Epoch {epoch}/{EPOCHS} | Train Loss: {avg_train_loss:.4f} | Train ROC AUC: {train_auc:.4f}"
+    )
+    return train_auc
+
+
+def validate_multimodal(model, device, valid_loader, criterion, epoch):
+    model.eval()
+    val_loss = 0.0
+    all_logits = []
+    all_labels = []
+
+    with torch.no_grad():
+        for metadatas, images, labels in tqdm(
+            valid_loader, desc=f"Validation Epoch {epoch}", leave=False
+        ):
+            metadatas, images, labels = (
+                metadatas.to(device).float(),
+                images.to(device),
+                labels.to(device),
+            )
+
+            logits = model(images, metadatas).view(-1)
+            loss = criterion(logits, labels)
+
+            val_loss += loss.item()
+            all_logits.extend(torch.sigmoid(logits).cpu().numpy())
+            all_labels.extend(labels.cpu().numpy())
+
+    avg_val_loss = val_loss / len(valid_loader)
+    try:
+        val_auc = roc_auc_score(all_labels, all_logits)
+    except ValueError:
+        val_auc = 0.0
+
+    print(
+        f"Epoch {epoch}/{EPOCHS} | Validation Loss: {avg_val_loss:.4f} | Validation ROC AUC: {val_auc:.4f}"
+    )
+    return val_auc
+
+
+def evaluate_multimodal(model, device, test_loader):
+    model.eval()
+    predictions = []
+
+    with torch.no_grad():
+        for metadatas, images, isic_ids in tqdm(test_loader, desc="Inference on Test"):
+            metadatas, images = metadatas.to(device).float(), images.to(device)
+
+            logits = model(images, metadatas).view(-1)
             probs = torch.sigmoid(logits).cpu().numpy()
 
             for isic_id, p in zip(isic_ids, probs):
