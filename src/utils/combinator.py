@@ -8,9 +8,9 @@ from kaggleisic import config
 load_dotenv()
 
 IMG_SUBMISSION_PATH = config.SUBMISSION_DATA_DIR / "convnext/convnext_aug_hdf5.csv"
-LGBM_SUBMISSION_PATH = config.SUBMISSION_DATA_DIR / "tabular/lgbm_submission.csv"
+LGBM_SUBMISSION_PATH = config.SUBMISSION_DATA_DIR / "tabular/lgbm_cb_xgb.csv"
 OUTPUT_SUBMISSION_PATH = urlparse(
-    str(config.SUBMISSION_DATA_DIR / "ensemble/submission_ensemble_avg.csv")
+    str(config.SUBMISSION_DATA_DIR / "ensemble/submission_ensemble_v3_avg.csv")
 ).path
 
 # Load the submissions
