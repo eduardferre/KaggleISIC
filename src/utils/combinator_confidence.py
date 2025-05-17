@@ -217,6 +217,6 @@ hybrid_worst_case_average(paths, output_path=OUTPUT_SUBMISSION_PATH)  # Aquí gu
 
 # ------- RESULTS
 # hybrid_worst_case_average(paths, output_path=OUTPUT_SUBMISSION_PATH, threshold=0.6)
-# Best one with: LGBM_CB_XGB_SUBMISSION_PATH, CONVNEXT_AUG_SUBMISSION_PATH, LGBM_SUBMISSION_PATH and threshold 0.6
+# Best one with: LGBM_CB_XGB_SUBMISSION_PATH, CONVNEXT_AUG_SUBMISSION_PATH, LGBM_SUBMISSION_PATH and threshold 0.6 -> submission_mega_ensemble_hybrid_approach_v3.csv (0.98496 AUC)
 #################
 #
