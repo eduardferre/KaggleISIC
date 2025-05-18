@@ -18,6 +18,10 @@ CONVNEXT_MORE_IMAGES_SUBMISSION_PATH = (
 RESNET_SIMP_AUG_SUBMISSION_PATH = (
     config.SUBMISSION_DATA_DIR / "resnet/resnet_simp_aug_hdf5.csv"
 )
+VIT_AUG_SUBMISSION_PATH = config.SUBMISSION_DATA_DIR / "transformers/vit_aug_hdf5.csv"
+VIT_MORE_IMAGES_SUBMISSION_PATH = (
+    config.SUBMISSION_DATA_DIR / "transformers/vit_more_images_hdf5.csv"
+)
 
 
 def confidence_voting(paths, output_path="submission_confidence_voting.csv"):
@@ -198,6 +202,61 @@ def consensus_escalation_heuristic(
     print(f"Saved consensus heuristic prediction to: {output_path}")
 
 
+def threshold_submission(base_submission_path, output_path, threshold=0.5):
+    df = pd.read_csv(base_submission_path)
+    # Assign hard labels based on threshold
+    df["target"] = (df["target"] >= threshold).astype(float)
+    df.to_csv(output_path, index=False)
+    print(f"Saved thresholded submission with threshold={threshold} to: {output_path}")
+
+
+import pandas as pd
+
+
+def hybrid_worst_case_weighted_average(
+    paths,
+    weights=None,
+    output_path="submission_hybrid_weighted_voting.csv",
+    threshold=0.6,
+):
+    if len(paths) < 2:
+        raise ValueError("At least two file paths must be provided.")
+
+    if weights is None:
+        # If no weights provided, assume equal weights
+        weights = [1.0] * len(paths)
+    elif len(weights) != len(paths):
+        raise ValueError("Length of weights must match number of paths.")
+
+    # Load and merge all dataframes on 'isic_id'
+    dfs = []
+    for i, path in enumerate(paths):
+        df = pd.read_csv(path).copy()
+        df.rename(columns={"target": f"target_{i+1}"}, inplace=True)
+        dfs.append(df)
+
+    # Merge all on 'isic_id'
+    merged = dfs[0]
+    for df in dfs[1:]:
+        merged = pd.merge(merged, df, on="isic_id")
+
+    target_cols = [f"target_{i+1}" for i in range(len(paths))]
+
+    def hybrid_rule(row):
+        preds = row[target_cols].values
+        weighted_preds = preds * weights
+        if weighted_preds.max() >= threshold:
+            return weighted_preds.max()  # Worst-case with weights applied
+        else:
+            return weighted_preds.mean()  # Weighted average otherwise
+
+    merged["target"] = merged.apply(hybrid_rule, axis=1)
+
+    result = merged[["isic_id", "target"]]
+    result.to_csv(output_path, index=False)
+    print(f"Saved weighted hybrid prediction to: {output_path}")
+
+
 # Aquí pones los paths de las submissions que quieras combinar
 paths = [
     LGBM_CB_XGB_SUBMISSION_PATH,
@@ -205,15 +264,24 @@ paths = [
     LGBM_SUBMISSION_PATH,
 ]
 
+
 OUTPUT_SUBMISSION_PATH = urlparse(
     str(
         config.SUBMISSION_DATA_DIR
-        / "ensemble/submission_mega_ensemble_hybrid_50_thresh.csv"
+        / "ensemble/submission_mega_ensemble_hybrid_convnext_thresholded_custom.csv"
     )
 ).path
 
-hybrid_worst_case_average(paths, output_path=OUTPUT_SUBMISSION_PATH)  # Aquí guardas
 
+hybrid_worst_case_average(
+    paths, output_path=OUTPUT_SUBMISSION_PATH, threshold=0.6
+)  # Aquí guardas
+
+
+# weights = [2.5, 0.6, 0.4, 1.5]  # Example weights for each submission
+# hybrid_worst_case_weighted_average(
+#     paths, weights=weights, output_path=OUTPUT_SUBMISSION_PATH, threshold=0.6
+# )
 
 # ------- RESULTS
 # hybrid_worst_case_average(paths, output_path=OUTPUT_SUBMISSION_PATH, threshold=0.6)
