@@ -1,0 +1,74 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[top=0.6in, bottom=1in, left=1in, right=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt}
+
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+
+\title{\textbf{ISIC 2024 - Skin Cancer Detection with ML}}
+\author{Eduard Ferré Sánchez (\texttt{100538716@alumnos.uc3m.es}) - \today}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Skin cancer is one of the most prevalent cancers worldwide, where early detection is vital. The ISIC 2024 challenge aims to automatically classify skin lesions as benign or malignant using dermoscopic images and patient metadata. This project applies \textit{machine learning} and \textit{deep learning} techniques to tackle challenges such as \textbf{severe class imbalance} and \textbf{multimodal data integration}, with the objective of building a \textbf{reliable} and \textbf{explainable} diagnostic support system aligned with medical screening practices.
+
+\section{Preprocessing \& Data Imbalance}
+
+The ISIC dataset contains dermoscopic images and patient metadata, but is highly imbalanced, with approximately \textbf{400,616 benign} and only \textbf{343 malignant} cases. Addressing this \textbf{class imbalance} was a core focus of preprocessing, applying \textit{SMOTE} to metadata for synthetic malignant samples, and extensive \textit{data augmentation} (resizing, flipping, rotations, blurring, perspective distortion) to malignant images.
+
+Metadata preprocessing also involved filtering out \textbf{irrelevant columns} (e.g., \texttt{patient\_id}, \texttt{image\_type}), \textit{imputing missing values}, and encoding categorical variables to ensure high data quality and preserve sample size.
+
+A \textbf{custom filter} enhanced lesion borders to improve diagnostic feature extraction. Furthermore, \textbf{weighted random samplers} were used in image data loaders, balancing class distribution in each batch to prevent bias toward the majority class during training.
+
+\section{Best Models \& Ensemble Strategies}
+
+Initial benchmarking used \textit{Multi-Layer Perceptrons} on metadata, images, and a multimodal combination. The multimodal MLP scored \textbf{79.80\% accuracy}, highlighting the value of integrating data types.
+
+\subsection{Metadata Modeling}
+
+For metadata, models such as \textit{Random Forests}, \textit{Support Vector Machines}, and \textit{gradient boosting} were tested. The best results arose from an ensemble of \textbf{LightGBM}, \textbf{CatBoost}, and \textbf{XGBoost}. These models were chosen for their \textbf{complementary strengths}: LightGBM for efficiency, CatBoost for native categorical handling and overfitting reduction, and XGBoost for robust regularization. The ensemble averaging improved generalization and maintained interpretability compared to image models.
+
+\subsection{Image Modeling}
+
+Image modeling demanded complex architectures due to unstructured data. After baseline CNNs and ResNet variants, \textbf{ConvNeXt} was selected for its advanced feature extraction, merging ResNet-like efficiency with Transformer-inspired design. Additionally, a hybrid \textbf{ConvNeXt + Vision Transformer (ViT)} model was developed, capturing both local and global features. These architectures excelled in recognizing subtle malignant signs, particularly with strong augmentation.
+
+\subsection{Ensemble Strategy for Final Prediction}
+
+Two ensemble methods were evaluated:
+\begin{itemize}
+  \item \textbf{Hybrid Worst Case}: Outputs the max probability if any model exceeds a threshold (e.g., 0.6), else averages predictions—balancing sensitivity and false positives.
+  \item \textbf{Worst Case}: Always selects the highest probability, prioritizing sensitivity.
+\end{itemize}
+The Hybrid Worst Case excelled on the public leaderboard; the Worst Case performed better on the private leaderboard.
+
+\section{Explainability Analysis for Medical Use}
+
+Given that this system targets doctors and medical professionals, \textbf{explainability} is paramount. The metadata models are inherently interpretable due to feature importance measures available in gradient boosting methods. For image models, techniques such as \textit{Grad-CAM} and attention visualization on ConvNeXt+ViT help highlight lesion areas influencing predictions, offering intuitive explanations to clinicians. This transparency supports trust and aids clinical decision-making.
+
+\section{Methodology and Medical Justifications}
+
+This project combined \textbf{careful preprocessing}, \textbf{class imbalance mitigation}, and \textit{advanced multimodal modeling} to improve skin cancer detection performance. By merging metadata and dermoscopic images, and employing robust \textbf{ensemble strategies}, the system enhanced accuracy and reliability.
+
+In clinical practice, missing a malignant case has far graver consequences than false alarms. Thus, the ensembles were designed to \textbf{prioritize sensitivity}, aligning with medical screening standards to minimize false negatives.
+
+Moreover, the chosen models and explainability methods ensure \textit{interpretability and trustworthiness}, critical for AI acceptance in healthcare. This work underscores the potential of \textbf{AI-assisted diagnostic tools} to effectively support dermatological screening.
+
+\section{Final Remarks}
+
+The complete project, including code, preprocessing pipelines, and trained models, is publicly available on \href{https://github.com/eduardferre/KaggleISIC}{\textbf{GitHub}} for transparency and reproducibility.
+
+The hybrid ConvNeXt+ViT model was inspired by the approach presented in the paper: \href{https://www.sciencedirect.com/science/article/abs/pii/S0957417425013430}{``\textbf{A novel hybrid ConvNeXt-based approach for enhanced skin lesion classification}''}.
+
+
+\end{document}

@@ -136,4 +136,14 @@ dmypy.json
 # MacOS
 .DS_Store
 
+# LaTeX
+*.aux
+*.bbl
+*.blg
+*.dvi
+*.log
+*.out
+*.toc
+*.gz
+
 # End of https://www.gitignore.io/api/python
